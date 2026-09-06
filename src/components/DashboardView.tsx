@@ -92,6 +92,27 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
   const [activeWeekView, setActiveWeekView] = useState<'this' | 'last'>('this');
   const [activeProjectMenu, setActiveProjectMenu] = useState<string | null>(null);
 
+  // Safe fallbacks for props to prevent runtime unhandled crashes
+  const safeProfile = userProfile || {
+    name: 'Student',
+    status: 'Focus • Build • Grow',
+    streakDays: 0,
+    dailyGoalHours: 6,
+    avatarUrl: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80',
+  };
+
+  const safeQuote = quote || {
+    quote: 'Small steps every day lead to big results.',
+    author: 'BeatMotion Maktub',
+    bgImageUrl: 'https://images.unsplash.com/photo-1506744038136-46273834b3fb?w=800&auto=format&fit=crop&q=80',
+  };
+
+  const safeTasks = Array.isArray(tasks) ? tasks.filter(Boolean) : [];
+  const safeProjects = Array.isArray(projects) ? projects.filter(Boolean) : [];
+  const safeNotes = Array.isArray(notes) ? notes.filter(Boolean) : [];
+  const safeThisWeek = Array.isArray(thisWeekHours) ? thisWeekHours.filter(Boolean) : [];
+  const safeLastWeek = Array.isArray(lastWeekHours) ? lastWeekHours.filter(Boolean) : [];
+
   // Dynamic greeting based on current local hour
   const currentHour = new Date().getHours();
   const timeGreeting =
@@ -110,27 +131,28 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
   const todayDayStr = dayNames[new Date().getDay()];
 
   // Today's focus hours logged
-  const todayEntry = thisWeekHours.find((d) => d.day === todayDayStr);
-  const todayFocusHours = todayEntry ? todayEntry.hours : 0;
+  const todayEntry = safeThisWeek.find((d) => d && d.day === todayDayStr);
+  const todayFocusHours = todayEntry && typeof todayEntry.hours === 'number' ? todayEntry.hours : 0;
   const focusTimeHoursFloor = Math.floor(todayFocusHours);
   const focusTimeMins = Math.round((todayFocusHours - focusTimeHoursFloor) * 60);
 
   // Calculations
-  const completedTasksCount = tasks.filter((t) => t.completed).length;
-  const totalTasksCount = tasks.length;
+  const completedTasksCount = safeTasks.filter((t) => t.completed).length;
+  const totalTasksCount = safeTasks.length;
   const tasksProgressPct = totalTasksCount > 0 ? Math.round((completedTasksCount / totalTasksCount) * 100) : 0;
 
   // Total hours this week
-  const totalThisWeekHours = thisWeekHours.reduce((acc, d) => acc + d.hours, 0);
-  const totalLastWeekHours = lastWeekHours.reduce((acc, d) => acc + d.hours, 0);
+  const totalThisWeekHours = safeThisWeek.reduce((acc, d) => acc + (d?.hours || 0), 0);
+  const totalLastWeekHours = safeLastWeek.reduce((acc, d) => acc + (d?.hours || 0), 0);
 
   // Weekly progress percentage (relative to daily goal * 7)
-  const weeklyGoalHours = (userProfile.dailyGoalHours || 6) * 7;
+  const safeDailyGoal = typeof safeProfile.dailyGoalHours === 'number' && safeProfile.dailyGoalHours > 0 ? safeProfile.dailyGoalHours : 6;
+  const weeklyGoalHours = safeDailyGoal * 7;
   const weeklyProgressPct = Math.min(100, Math.round((totalThisWeekHours / weeklyGoalHours) * 100));
 
   // Current chart data scaling
-  const currentChart = activeWeekView === 'this' ? thisWeekHours : lastWeekHours;
-  const maxHoursInView = Math.max(4, ...currentChart.map((c) => c.hours));
+  const currentChart = (activeWeekView === 'this' ? safeThisWeek : safeLastWeek) || [];
+  const maxHoursInView = Math.max(4, ...currentChart.map((c) => c?.hours || 0));
 
   const hasVideoLoaded = Boolean(currentVideo && currentVideo.id && currentVideo.id.trim());
 
@@ -147,14 +169,14 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                 className="text-transparent bg-clip-text bg-gradient-to-r from-indigo-400 via-purple-400 to-blue-400 font-extrabold hover:opacity-80 transition cursor-pointer flex items-center gap-1.5"
                 title="Click to edit profile"
               >
-                <span>{userProfile.name}</span>
+                <span>{safeProfile.name}</span>
                 <Edit2 className="w-3.5 h-3.5 text-blue-400 inline opacity-70 hover:opacity-100" />
               </button>
               <span className="text-amber-400 text-2xl">☀️</span>
             </h1>
           </div>
           <p className="text-xs sm:text-sm text-slate-400 font-medium">
-            {userProfile.status || 'Stay focused. Make progress. Build the future you want.'}
+            {safeProfile.status || 'Stay focused. Make progress. Build the future you want.'}
           </p>
         </div>
 
@@ -166,7 +188,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
             title="Edit streak"
           >
             <Flame className="w-3.5 h-3.5 fill-current" />
-            <span>Day {userProfile.streakDays} streak</span>
+            <span>Day {safeProfile.streakDays || 0} streak</span>
           </button>
         </div>
       </div>
@@ -225,12 +247,12 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                 {todayFocusHours > 0 ? (
                   <>
                     {focusTimeHoursFloor}h {focusTimeMins}m{' '}
-                    <span className="text-slate-500 text-sm font-normal">of {userProfile.dailyGoalHours}h</span>
+                    <span className="text-slate-500 text-sm font-normal">of {safeDailyGoal}h</span>
                   </>
                 ) : (
                   <>
                     0h 0m{' '}
-                    <span className="text-slate-500 text-sm font-normal">of {userProfile.dailyGoalHours}h</span>
+                    <span className="text-slate-500 text-sm font-normal">of {safeDailyGoal}h</span>
                   </>
                 )}
               </div>
@@ -238,7 +260,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
             <div className="w-full h-1.5 bg-slate-800 rounded-full overflow-hidden">
               <div
                 className="h-full bg-emerald-400 rounded-full transition-all duration-500"
-                style={{ width: `${Math.min(100, (todayFocusHours / userProfile.dailyGoalHours) * 100)}%` }}
+                style={{ width: `${Math.min(100, (todayFocusHours / (safeDailyGoal || 6)) * 100)}%` }}
               />
             </div>
           </div>
@@ -370,10 +392,10 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                   onClick={() => onSelectTab(hasVideoLoaded ? 'sanctuary' : 'curated')}
                   className="text-base font-bold text-white hover:text-blue-400 transition cursor-pointer truncate"
                 >
-                  {hasVideoLoaded ? currentVideo.title : 'No lecture selected'}
+                  {hasVideoLoaded && currentVideo ? currentVideo.title : 'No lecture selected'}
                 </h3>
                 <p className="text-xs text-slate-400 truncate">
-                  {hasVideoLoaded
+                  {hasVideoLoaded && currentVideo
                     ? currentVideo.channelTitle || 'YouTube Study Stream'
                     : 'Click to discover high-yield lectures'}
                 </p>
@@ -389,7 +411,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                 </div>
                 <div className="flex items-center justify-between text-[10px] font-mono text-slate-500">
                   <span>Progress</span>
-                  <span>{currentVideo.duration || 'Ready'}</span>
+                  <span>{currentVideo?.duration || 'Ready'}</span>
                 </div>
               </div>
 
@@ -492,15 +514,18 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
 
               {/* Bar Chart Graphic (Mon to Sun) */}
               <div className="flex-1 flex items-end justify-between gap-2.5 pt-6 pb-3 px-2 border-b border-white/5 min-h-[140px]">
-                {currentChart.map((col) => {
+                {currentChart.map((col, idx) => {
+                  const colDay = col?.day || ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'][idx] || `Day ${idx+1}`;
+                  const colHours = typeof col?.hours === 'number' && !isNaN(col.hours) ? col.hours : 0;
+                  const safeMax = maxHoursInView > 0 ? maxHoursInView : 4;
                   const barHeightPct =
-                    col.hours > 0 ? Math.max(12, Math.round((col.hours / maxHoursInView) * 100)) : 4;
-                  const isToday = col.day === todayDayStr && activeWeekView === 'this';
+                    colHours > 0 ? Math.max(12, Math.round((colHours / safeMax) * 100)) : 4;
+                  const isToday = colDay === todayDayStr && activeWeekView === 'this';
 
                   return (
-                    <div key={col.day} className="flex-1 flex flex-col items-center gap-2 group relative">
+                    <div key={colDay} className="flex-1 flex flex-col items-center gap-2 group relative">
                       <span className="text-[10px] font-mono text-slate-400 opacity-0 group-hover:opacity-100 transition-opacity absolute -top-5">
-                        {col.hours}h
+                        {colHours}h
                       </span>
                       <div className="w-full max-w-[28px] h-28 bg-slate-800/50 rounded-lg flex items-end overflow-hidden p-0.5 border border-white/5">
                         <div
@@ -517,7 +542,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                           isToday ? 'text-emerald-400 font-bold' : 'text-slate-400'
                         }`}
                       >
-                        {col.day}
+                        {colDay}
                       </span>
                     </div>
                   );
@@ -898,7 +923,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                 className="absolute inset-0 bg-cover bg-center transition-transform duration-700 group-hover:scale-105"
                 style={{
                   backgroundImage: `url('${
-                    quote.bgImageUrl ||
+                    safeQuote.bgImageUrl ||
                     'https://images.unsplash.com/photo-1506744038136-46273834b3fb?w=800&auto=format&fit=crop&q=80'
                   }')`,
                 }}
@@ -916,10 +941,10 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
 
               <div className="relative z-10 space-y-2">
                 <blockquote className="text-base sm:text-lg font-medium text-white leading-relaxed drop-shadow-md">
-                  “{quote.quote}”
+                  “{safeQuote.quote || 'Small steps every day lead to big results.'}”
                 </blockquote>
                 <p className="text-xs text-slate-300 font-mono tracking-wider">
-                  — {quote.author}
+                  — {safeQuote.author || 'BeatMotion Maktub'}
                 </p>
               </div>
             </div>

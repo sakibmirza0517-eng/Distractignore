@@ -35,12 +35,14 @@ export const VideoCard3D: React.FC<VideoCard3DProps> = ({
     const rect = cardRef.current.getBoundingClientRect();
     const width = rect.width;
     const height = rect.height;
+    if (!width || !height) return;
 
     const mouseX = e.clientX - rect.left;
     const mouseY = e.clientY - rect.top;
 
     const xPct = mouseX / width - 0.5;
     const yPct = mouseY / height - 0.5;
+    if (isNaN(xPct) || isNaN(yPct)) return;
 
     x.set(xPct);
     y.set(yPct);

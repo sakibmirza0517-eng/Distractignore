@@ -10,6 +10,7 @@ export interface VideoItem {
   customNotes?: string;
   priority?: 'High' | 'Medium' | 'Low';
   savedAt?: number;
+  tags?: string[];
 }
 
 export interface TaskItem {
@@ -93,3 +94,11 @@ export interface RoomTimerState {
   totalSeconds: number;
   updatedAt: number;
 }
+
+export interface CuratedCategory {
+  category: string;
+  icon: string;
+  description: string;
+  videos: VideoItem[];
+}
+

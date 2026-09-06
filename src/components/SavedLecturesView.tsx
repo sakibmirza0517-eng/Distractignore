@@ -32,13 +32,18 @@ export const SavedLecturesView: React.FC<SavedLecturesViewProps> = ({
   const [filterPriority, setFilterPriority] = useState<string>('All');
   const [searchQuery, setSearchQuery] = useState('');
 
-  const filtered = savedVideos.filter((v) => {
+  const safeVideos = Array.isArray(savedVideos) ? savedVideos.filter(Boolean) : [];
+
+  const filtered = safeVideos.filter((v) => {
+    if (!v) return false;
     const matchPriority = filterPriority === 'All' || v.priority === filterPriority;
+    const qLower = searchQuery.trim().toLowerCase();
     const matchQuery =
-      !searchQuery.trim() ||
-      v.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      (v.topic && v.topic.toLowerCase().includes(searchQuery.toLowerCase())) ||
-      (v.customNotes && v.customNotes.toLowerCase().includes(searchQuery.toLowerCase()));
+      !qLower ||
+      (v.title && v.title.toLowerCase().includes(qLower)) ||
+      (v.topic && v.topic.toLowerCase().includes(qLower)) ||
+      (v.channelTitle && v.channelTitle.toLowerCase().includes(qLower)) ||
+      (v.customNotes && v.customNotes.toLowerCase().includes(qLower));
     return matchPriority && matchQuery;
   });
 

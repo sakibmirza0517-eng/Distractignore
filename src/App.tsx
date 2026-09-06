@@ -61,6 +61,9 @@ import { EditProfileModal } from './components/EditProfileModal';
 import { EditWeeklyHoursModal } from './components/EditWeeklyHoursModal';
 import { EditQuoteModal } from './components/EditQuoteModal';
 
+// Static Curated Collections & YouTube ID extractor
+import { DEFAULT_CURATED_COLLECTIONS, extractYouTubeId } from './data/curatedData';
+
 // Clean initial empty video placeholder
 const EMPTY_VIDEO: VideoItem = {
   id: '',
@@ -94,6 +97,25 @@ const isDummyProjectId = (id: string) => ['p1', 'p2', 'p3'].includes(id);
 const isDummyNoteId = (id: string) => ['n1', 'n2', 'n3', 'n4'].includes(id);
 const isDummyVideoId = (id: string) => ['WUvTyaaNkzM', '8hly31xKli0', 'jfA7m4lKkG4'].includes(id);
 
+// Safe LocalStorage helpers that prevent crashes in private browsing or storage quota errors
+const safeGetItem = (key: string): string | null => {
+  try {
+    if (typeof window === 'undefined') return null;
+    return localStorage.getItem(key);
+  } catch {
+    return null;
+  }
+};
+
+const safeSetItem = (key: string, value: string) => {
+  try {
+    if (typeof window === 'undefined') return;
+    localStorage.setItem(key, value);
+  } catch (e) {
+    console.warn(`localStorage write failed for ${key}:`, e);
+  }
+};
+
 export default function App() {
   // Navigation tabs
   const [activeTab, setActiveTab] = useState<string>('dashboard');
@@ -108,12 +130,19 @@ export default function App() {
 
   // User Profile State (editable)
   const [userProfile, setUserProfile] = useState<UserProfile>(() => {
-    const saved = localStorage.getItem('bm_user_profile');
+    const saved = safeGetItem('bm_user_profile');
     if (saved) {
       try {
         const parsed = JSON.parse(saved);
-        if (parsed && parsed.name && parsed.name !== 'Sakib Mirza') {
-          return parsed;
+        if (parsed && typeof parsed === 'object') {
+          return {
+            name: parsed.name && parsed.name !== 'Sakib Mirza' ? String(parsed.name) : DEFAULT_PROFILE.name,
+            email: parsed.email ? String(parsed.email) : '',
+            status: parsed.status ? String(parsed.status) : DEFAULT_PROFILE.status,
+            streakDays: typeof parsed.streakDays === 'number' && !isNaN(parsed.streakDays) ? Math.max(0, parsed.streakDays) : 0,
+            dailyGoalHours: typeof parsed.dailyGoalHours === 'number' && parsed.dailyGoalHours > 0 ? parsed.dailyGoalHours : 6,
+            avatarUrl: parsed.avatarUrl ? String(parsed.avatarUrl) : DEFAULT_PROFILE.avatarUrl,
+          };
         }
       } catch {}
     }
@@ -122,13 +151,19 @@ export default function App() {
 
   // Daily Tasks State (empty by default, dummy purged)
   const [tasks, setTasks] = useState<TaskItem[]>(() => {
-    const saved = localStorage.getItem('bm_tasks');
+    const saved = safeGetItem('bm_tasks');
     if (saved) {
       try {
         const parsed = JSON.parse(saved);
         if (Array.isArray(parsed)) {
-          const cleaned = parsed.filter((t: TaskItem) => !isDummyTaskId(t.id));
-          return cleaned;
+          return parsed
+            .filter((t: TaskItem) => t && t.id && !isDummyTaskId(t.id))
+            .map((t: TaskItem) => ({
+              id: String(t.id),
+              title: String(t.title || 'Untitled Task'),
+              time: String(t.time || 'Today'),
+              completed: Boolean(t.completed),
+            }));
         }
       } catch {}
     }
@@ -137,13 +172,19 @@ export default function App() {
 
   // Projects State (empty by default, dummy purged)
   const [projects, setProjects] = useState<ProjectItem[]>(() => {
-    const saved = localStorage.getItem('bm_projects');
+    const saved = safeGetItem('bm_projects');
     if (saved) {
       try {
         const parsed = JSON.parse(saved);
         if (Array.isArray(parsed)) {
-          const cleaned = parsed.filter((p: ProjectItem) => !isDummyProjectId(p.id));
-          return cleaned;
+          return parsed
+            .filter((p: ProjectItem) => p && p.id && !isDummyProjectId(p.id))
+            .map((p: ProjectItem) => ({
+              id: String(p.id),
+              title: String(p.title || 'Untitled Project'),
+              category: String(p.category || 'General'),
+              progress: typeof p.progress === 'number' && !isNaN(p.progress) ? Math.min(100, Math.max(0, p.progress)) : 0,
+            }));
         }
       } catch {}
     }
@@ -152,13 +193,24 @@ export default function App() {
 
   // Saved / Bookmarked Lectures State (empty by default, dummy purged)
   const [savedVideos, setSavedVideos] = useState<VideoItem[]>(() => {
-    const saved = localStorage.getItem('maktub_bookmarks');
+    const saved = safeGetItem('maktub_bookmarks');
     if (saved) {
       try {
         const parsed = JSON.parse(saved);
         if (Array.isArray(parsed)) {
-          const cleaned = parsed.filter((v: VideoItem) => !isDummyVideoId(v.id));
-          return cleaned;
+          return parsed
+            .filter((v: VideoItem) => v && v.id && !isDummyVideoId(v.id))
+            .map((v: VideoItem) => ({
+              id: String(v.id),
+              title: String(v.title || 'Lecture'),
+              channelTitle: String(v.channelTitle || 'YouTube'),
+              duration: v.duration ? String(v.duration) : undefined,
+              topic: v.topic ? String(v.topic) : undefined,
+              description: v.description ? String(v.description) : undefined,
+              thumbnail: v.thumbnail ? String(v.thumbnail) : `https://i.ytimg.com/vi/${v.id}/hqdefault.jpg`,
+              priority: v.priority || 'Medium',
+              customNotes: v.customNotes || '',
+            }));
         }
       } catch {}
     }
@@ -167,12 +219,20 @@ export default function App() {
 
   // Video Player State
   const [currentVideo, setCurrentVideo] = useState<VideoItem>(() => {
-    const saved = localStorage.getItem('maktub_current_video');
+    const saved = safeGetItem('maktub_current_video');
     if (saved) {
       try {
         const parsed = JSON.parse(saved);
         if (parsed && parsed.id && !isDummyVideoId(parsed.id)) {
-          return parsed;
+          return {
+            id: String(parsed.id),
+            title: String(parsed.title || 'Lecture'),
+            channelTitle: String(parsed.channelTitle || 'YouTube'),
+            duration: parsed.duration ? String(parsed.duration) : undefined,
+            topic: parsed.topic ? String(parsed.topic) : undefined,
+            description: parsed.description ? String(parsed.description) : undefined,
+            thumbnail: parsed.thumbnail ? String(parsed.thumbnail) : `https://i.ytimg.com/vi/${parsed.id}/hqdefault.jpg`,
+          };
         }
       } catch {}
     }
@@ -182,21 +242,30 @@ export default function App() {
   const [seekTimestamp, setSeekTimestamp] = useState<number>(0);
   const [isZenMode, setIsZenMode] = useState<boolean>(false);
 
-  // Search & Recommendations State
+  // Search & Recommendations State (pre-populated with high-yield fallback topics)
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [searchResults, setSearchResults] = useState<VideoItem[]>([]);
   const [isSearching, setIsSearching] = useState<boolean>(false);
-  const [curatedCategories, setCuratedCategories] = useState<any[]>([]);
+  const [curatedCategories, setCuratedCategories] = useState<any[]>(DEFAULT_CURATED_COLLECTIONS);
 
   // Notes State (empty by default, dummy purged)
   const [notes, setNotes] = useState<StudyNote[]>(() => {
-    const saved = localStorage.getItem('maktub_notes');
+    const saved = safeGetItem('maktub_notes');
     if (saved) {
       try {
         const parsed = JSON.parse(saved);
         if (Array.isArray(parsed)) {
-          const cleaned = parsed.filter((n: StudyNote) => !isDummyNoteId(n.id));
-          return cleaned;
+          return parsed
+            .filter((n: StudyNote) => n && n.id && !isDummyNoteId(n.id))
+            .map((n: StudyNote) => ({
+              id: String(n.id),
+              videoId: String(n.videoId || 'general'),
+              videoTitle: String(n.videoTitle || 'Lecture Note'),
+              timestamp: typeof n.timestamp === 'number' ? n.timestamp : 0,
+              formattedTime: String(n.formattedTime || '00:00'),
+              text: String(n.text || ''),
+              createdAt: typeof n.createdAt === 'number' ? n.createdAt : Date.now(),
+            }));
         }
       } catch {}
     }
@@ -205,22 +274,32 @@ export default function App() {
 
   // Weekly Activity Hours (Mon to Sun)
   const [thisWeekHours, setThisWeekHours] = useState<WeeklyActivityDay[]>(() => {
-    const saved = localStorage.getItem('maktub_this_week_hours');
+    const saved = safeGetItem('maktub_this_week_hours');
     if (saved) {
       try {
         const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed) && parsed.length === 7) return parsed;
+        if (Array.isArray(parsed) && parsed.length === 7) {
+          return DEFAULT_DAYS.map((day, idx) => {
+            const found = parsed.find((r: any) => r && r.day === day) || parsed[idx];
+            return { day, hours: typeof found?.hours === 'number' && !isNaN(found.hours) ? Math.max(0, found.hours) : 0 };
+          });
+        }
       } catch {}
     }
     return DEFAULT_DAYS.map((day) => ({ day, hours: 0 }));
   });
 
   const [lastWeekHours, setLastWeekHours] = useState<WeeklyActivityDay[]>(() => {
-    const saved = localStorage.getItem('maktub_last_week_hours');
+    const saved = safeGetItem('maktub_last_week_hours');
     if (saved) {
       try {
         const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed) && parsed.length === 7) return parsed;
+        if (Array.isArray(parsed) && parsed.length === 7) {
+          return DEFAULT_DAYS.map((day, idx) => {
+            const found = parsed.find((r: any) => r && r.day === day) || parsed[idx];
+            return { day, hours: typeof found?.hours === 'number' && !isNaN(found.hours) ? Math.max(0, found.hours) : 0 };
+          });
+        }
       } catch {}
     }
     return DEFAULT_DAYS.map((day) => ({ day, hours: 0 }));
@@ -228,11 +307,17 @@ export default function App() {
 
   // Motivational Quote State
   const [motivationQuote, setMotivationQuote] = useState<MotivationQuote>(() => {
-    const saved = localStorage.getItem('maktub_motivation_quote');
+    const saved = safeGetItem('maktub_motivation_quote');
     if (saved) {
       try {
         const parsed = JSON.parse(saved);
-        if (parsed && parsed.quote) return parsed;
+        if (parsed && parsed.quote) {
+          return {
+            quote: String(parsed.quote),
+            author: parsed.author ? String(parsed.author) : DEFAULT_QUOTE.author,
+            bgImageUrl: parsed.bgImageUrl ? String(parsed.bgImageUrl) : DEFAULT_QUOTE.bgImageUrl,
+          };
+        }
       } catch {}
     }
     return DEFAULT_QUOTE;
@@ -285,53 +370,59 @@ export default function App() {
     };
   }, []);
 
-  // Sync state to LocalStorage
+  // Sync state to LocalStorage safely
   useEffect(() => {
-    localStorage.setItem('maktub_current_video', JSON.stringify(currentVideo));
+    safeSetItem('maktub_current_video', JSON.stringify(currentVideo));
   }, [currentVideo]);
 
   useEffect(() => {
-    localStorage.setItem('maktub_bookmarks', JSON.stringify(savedVideos));
+    safeSetItem('maktub_bookmarks', JSON.stringify(savedVideos));
   }, [savedVideos]);
 
   useEffect(() => {
-    localStorage.setItem('maktub_notes', JSON.stringify(notes));
+    safeSetItem('maktub_notes', JSON.stringify(notes));
   }, [notes]);
 
   useEffect(() => {
-    localStorage.setItem('bm_tasks', JSON.stringify(tasks));
+    safeSetItem('bm_tasks', JSON.stringify(tasks));
   }, [tasks]);
 
   useEffect(() => {
-    localStorage.setItem('bm_projects', JSON.stringify(projects));
+    safeSetItem('bm_projects', JSON.stringify(projects));
   }, [projects]);
 
   useEffect(() => {
-    localStorage.setItem('bm_user_profile', JSON.stringify(userProfile));
+    safeSetItem('bm_user_profile', JSON.stringify(userProfile));
   }, [userProfile]);
 
   useEffect(() => {
-    localStorage.setItem('maktub_this_week_hours', JSON.stringify(thisWeekHours));
+    safeSetItem('maktub_this_week_hours', JSON.stringify(thisWeekHours));
   }, [thisWeekHours]);
 
   useEffect(() => {
-    localStorage.setItem('maktub_last_week_hours', JSON.stringify(lastWeekHours));
+    safeSetItem('maktub_last_week_hours', JSON.stringify(lastWeekHours));
   }, [lastWeekHours]);
 
   useEffect(() => {
-    localStorage.setItem('maktub_motivation_quote', JSON.stringify(motivationQuote));
+    safeSetItem('maktub_motivation_quote', JSON.stringify(motivationQuote));
   }, [motivationQuote]);
 
-  // Load Curated categories on initial mount
+  // Load Curated categories on initial mount (with safe fallback for static/Vercel hosts)
   useEffect(() => {
     fetch('/api/curated')
-      .then((res) => res.json())
+      .then((res) => {
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        return res.json();
+      })
       .then((data) => {
-        if (data.categories) {
+        if (data && data.categories && Array.isArray(data.categories) && data.categories.length > 0) {
           setCuratedCategories(data.categories);
         }
       })
-      .catch((err) => console.log('Curated fallback:', err));
+      .catch((err) => {
+        // Fallback already pre-populated from DEFAULT_CURATED_COLLECTIONS
+        console.log('Using static curated collections:', err);
+      });
   }, []);
 
   // Automatically log Pomodoro sessions into today's focus hours
@@ -348,43 +439,104 @@ export default function App() {
     }
   };
 
-  // Handle Search Execution
+  // Handle Search Execution (works with both API and offline/Vercel fallback)
   const executeSearch = async (query: string) => {
-    if (!query.trim()) {
+    const trimmed = query.trim();
+    if (!trimmed) {
       setSearchResults([]);
       return;
     }
     setIsSearching(true);
     setActiveTab('curated');
+
+    // If query is an 11-char ID or direct YouTube URL, create a playable card immediately
+    const directId = extractYouTubeId(trimmed);
+    if (directId) {
+      const directVideo: VideoItem = {
+        id: directId,
+        title: `YouTube Lecture (${directId})`,
+        channelTitle: 'YouTube Academic Lecture',
+        thumbnail: `https://i.ytimg.com/vi/${directId}/hqdefault.jpg`,
+        topic: 'Direct Lecture',
+        duration: 'Ready',
+        description: 'Directly loaded lecture video.',
+      };
+      setSearchResults([directVideo]);
+      setIsSearching(false);
+      return;
+    }
+
     try {
-      const res = await fetch(`/api/youtube/search?q=${encodeURIComponent(query)}`);
-      const data = await res.json();
-      if (data.results && data.results.length > 0) {
-        setSearchResults(data.results);
+      const res = await fetch(`/api/youtube/search?q=${encodeURIComponent(trimmed)}`);
+      if (res.ok) {
+        const data = await res.json();
+        if (data && data.results && Array.isArray(data.results) && data.results.length > 0) {
+          setSearchResults(data.results);
+          setIsSearching(false);
+          return;
+        }
       }
     } catch (err) {
-      console.error('Search error:', err);
-      showToast('Error connecting to YouTube search.');
-    } finally {
-      setIsSearching(false);
+      console.warn('Backend search unavailable, searching client-side recommendations:', err);
     }
+
+    // Client-side fallback search across curated categories
+    const allCuratedVideos: VideoItem[] = (curatedCategories || DEFAULT_CURATED_COLLECTIONS).flatMap(
+      (cat: any) => cat.videos || []
+    );
+    const qLower = trimmed.toLowerCase();
+    const matched = allCuratedVideos.filter((v: VideoItem) => {
+      return (
+        (v.title && v.title.toLowerCase().includes(qLower)) ||
+        (v.topic && v.topic.toLowerCase().includes(qLower)) ||
+        (v.description && v.description.toLowerCase().includes(qLower)) ||
+        (v.channelTitle && v.channelTitle.toLowerCase().includes(qLower))
+      );
+    });
+
+    if (matched.length > 0) {
+      setSearchResults(matched);
+    } else {
+      setSearchResults(allCuratedVideos.slice(0, 6));
+      showToast(`Showing recommendations for "${trimmed}"`);
+    }
+    setIsSearching(false);
   };
 
-  // Direct paste of YouTube URL or ID
+  // Direct paste of YouTube URL or ID (supports both backend and pure client-side on Vercel)
   const handlePasteUrl = async (url: string) => {
+    const vidId = extractYouTubeId(url);
+
     try {
       const res = await fetch(`/api/youtube/video-info?url=${encodeURIComponent(url)}`);
-      const data = await res.json();
-      if (data.video) {
-        handleSelectVideo(data.video);
-        setActiveTab('sanctuary');
-        showToast(`Loaded: ${data.video.title}`);
-      } else {
-        showToast('Could not load video details. Please verify the URL.');
+      if (res.ok) {
+        const data = await res.json();
+        if (data && data.video) {
+          handleSelectVideo(data.video);
+          setActiveTab('sanctuary');
+          showToast(`Loaded: ${data.video.title}`);
+          return;
+        }
       }
     } catch (err) {
-      console.error('Failed to parse URL:', err);
-      showToast('Error loading video.');
+      console.warn('Backend video info endpoint unavailable, falling back to client-side parsing:', err);
+    }
+
+    if (vidId) {
+      const fallbackVideo: VideoItem = {
+        id: vidId,
+        title: `YouTube Lecture (${vidId})`,
+        channelTitle: 'YouTube',
+        thumbnail: `https://i.ytimg.com/vi/${vidId}/hqdefault.jpg`,
+        topic: 'Lecture',
+        duration: 'Study Session',
+        description: 'Pasted YouTube video ready for distraction-free study with notes and formulas.',
+      };
+      handleSelectVideo(fallbackVideo);
+      setActiveTab('sanctuary');
+      showToast('Loaded YouTube lecture!');
+    } else {
+      showToast('Please verify YouTube URL or 11-character video ID.');
     }
   };
 

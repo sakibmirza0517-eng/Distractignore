@@ -13,14 +13,22 @@ export function useAmbientAudio() {
 
   // Initialize or get audio context
   const getAudioContext = () => {
-    if (!audioCtxRef.current) {
-      const AudioCtx = window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
-      audioCtxRef.current = new AudioCtx();
+    try {
+      if (typeof window === 'undefined') return null;
+      if (!audioCtxRef.current) {
+        const AudioCtx = window.AudioContext || (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
+        if (AudioCtx) {
+          audioCtxRef.current = new AudioCtx();
+        }
+      }
+      if (audioCtxRef.current && audioCtxRef.current.state === 'suspended') {
+        audioCtxRef.current.resume().catch(() => {});
+      }
+      return audioCtxRef.current;
+    } catch (e) {
+      console.warn('AudioContext error:', e);
+      return null;
     }
-    if (audioCtxRef.current.state === 'suspended') {
-      audioCtxRef.current.resume();
-    }
-    return audioCtxRef.current;
   };
 
   const stopCurrentSound = () => {
@@ -41,6 +49,7 @@ export function useAmbientAudio() {
   const playChime = () => {
     try {
       const ctx = getAudioContext();
+      if (!ctx) return;
       const osc = ctx.createOscillator();
       const gain = ctx.createGain();
 
@@ -73,6 +82,7 @@ export function useAmbientAudio() {
 
     try {
       const ctx = getAudioContext();
+      if (!ctx) return;
       stopCurrentSound();
 
       const masterGain = ctx.createGain();

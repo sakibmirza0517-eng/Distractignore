@@ -30,8 +30,10 @@ export const Card3D: React.FC<Card3DProps> = ({
   const handleMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
     if (!cardRef.current) return;
     const rect = cardRef.current.getBoundingClientRect();
+    if (!rect.width || !rect.height) return;
     const xPct = (e.clientX - rect.left) / rect.width - 0.5;
     const yPct = (e.clientY - rect.top) / rect.height - 0.5;
+    if (isNaN(xPct) || isNaN(yPct)) return;
     x.set(xPct);
     y.set(yPct);
   };
