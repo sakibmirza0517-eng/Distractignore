@@ -1,0 +1,6 @@
+{
+  "name": "Maktub - Distraction-Free Study YouTube",
+  "description": "An ad-free, distraction-free YouTube study player designed for exam prep with timestamped notes, focus timer, 3D animated Figma UI, and PWA installability.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
