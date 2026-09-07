@@ -17,12 +17,12 @@ export const EditSavedModal: React.FC<EditSavedModalProps> = ({
   onSave,
   onDelete,
 }) => {
-  const [title, setTitle] = useState(video.title);
-  const [topic, setTopic] = useState(video.topic || 'General');
-  const [customNotes, setCustomNotes] = useState(video.customNotes || '');
-  const [priority, setPriority] = useState<'High' | 'Medium' | 'Low'>(video.priority || 'Medium');
+  const [title, setTitle] = useState(video?.title || '');
+  const [topic, setTopic] = useState(video?.topic || 'General');
+  const [customNotes, setCustomNotes] = useState(video?.customNotes || '');
+  const [priority, setPriority] = useState<'High' | 'Medium' | 'Low'>(video?.priority || 'Medium');
 
-  if (!isOpen) return null;
+  if (!isOpen || !video) return null;
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();

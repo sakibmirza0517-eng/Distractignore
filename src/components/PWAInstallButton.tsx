@@ -6,6 +6,7 @@ export const PWAInstallButton: React.FC = () => {
   const { isInstallable, isInstalled, isIOS, install } = usePWAInstall();
   const [showIOSGuide, setShowIOSGuide] = useState(false);
   const [installSuccess, setInstallSuccess] = useState(false);
+  const [showDesktopTip, setShowDesktopTip] = useState(false);
 
   // If already running as standalone app, show small badge or hide
   if (isInstalled) {
@@ -124,8 +125,6 @@ export const PWAInstallButton: React.FC = () => {
       </>
     );
   }
-
-  const [showDesktopTip, setShowDesktopTip] = useState(false);
 
   // Generic fallback if user is on standard desktop browser (or prompt not fired yet)
   return (
